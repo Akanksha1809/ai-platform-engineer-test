@@ -1,0 +1,48 @@
+# ArgoCD ApplicationSet -- automatically creates one ArgoCD Application per
+# generated service, by scanning the repo for helm/<service-name>/ folders.
+# This is what makes the platform self-service: every new request that
+# reaches main gets its own Helm chart under helm/, and ArgoCD picks it up
+# without anyone hand-writing a new Application manifest each time.
+#
+# BEFORE APPLYING: replace REPO_URL_PLACEHOLDER below with your actual
+# GitHub repo URL, e.g. https://github.com/YOUR-USERNAME/ai-platform-engineer-test.git
+#
+# Apply with:
+#   kubectl apply -f infra/argocd/applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ai-platform-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/Akanksha1809/ai-platform-engineer-test
+        revision: main
+        directories:
+          # Matches helm/<anything>, e.g. helm/orders-api, helm/auth-worker.
+          # Excludes the shared template source under templates/helm/,
+          # which is not itself a deployable chart.
+          - path: helm/*
+  template:
+    metadata:
+      name: "{{.path.basename}}"
+      labels:
+        managed-by: ai-platform-engineer
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/Akanksha1809/ai-platform-engineer-test
+        targetRevision: main
+        path: "{{.path.path}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true      # remove resources ArgoCD no longer sees in git
+          selfHeal: true    # revert manual cluster edits back to match git
+        syncOptions:
+          - CreateNamespace=true

@@ -1,0 +1,21 @@
+# Local Kubernetes cluster for Milestone 4 -- this is the deployment target
+# for ArgoCD, entirely free and running on your own machine via Docker.
+# It is separate from the AWS side of this project: Terraform describing
+# AWS resources is generated and validated (terraform validate / checkov)
+# but never applied here -- applying it would create real, billed AWS
+# resources, which is a deliberate step you take on your own, not something
+# CI does automatically. This cluster is where the Kubernetes/Helm half of
+# each generated service actually runs.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ai-platform-engineer
+nodes:
+  - role: control-plane
+    # Maps the host's port 8080 -> ArgoCD's server port inside the cluster,
+    # as an alternative to `kubectl port-forward` if you'd rather have a
+    # persistent URL. Using port-forward instead is simpler and is what the
+    # setup guide uses by default, so this is optional.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP

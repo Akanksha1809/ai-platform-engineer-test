@@ -1,0 +1,3 @@
+{
+  "request": "I need a new public service called orders-api using image myorg/orders-api:1.4.0 on port 8080 with 3 replicas, needs an s3 bucket and a postgres database"
+}

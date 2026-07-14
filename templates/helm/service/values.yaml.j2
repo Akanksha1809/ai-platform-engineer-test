@@ -1,0 +1,28 @@
+replicaCount: {{ spec.replicas }}
+
+image:
+  repository: {{ spec.container_image.split(':')[0] }}
+  tag: "{{ spec.container_image.split(':')[1] if ':' in spec.container_image else 'latest' }}"
+  pullPolicy: IfNotPresent
+
+service:
+  type: {{ "LoadBalancer" if spec.public_endpoint else "ClusterIP" }}
+  port: {{ spec.container_port }}
+
+resources:
+  requests:
+    cpu: {{ spec.cpu }}
+    memory: {{ spec.memory }}
+  limits:
+    cpu: {{ spec.cpu }}
+    memory: {{ spec.memory }}
+
+env:
+{% for key, value in spec.env.items() %}
+  {{ key }}: "{{ value }}"
+{% endfor %}
+{% if not spec.env %}
+  {}
+{% endif %}
+
+namespace: {{ spec.namespace }}

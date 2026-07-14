@@ -1,0 +1,29 @@
+# Runs Jenkins locally via Docker -- free, self-hosted, no cloud account
+# needed. Data persists in the `jenkins-data` named volume across restarts.
+#
+# Start with:  docker compose -f infra/jenkins/docker-compose.yml up -d --build
+# Jenkins UI:  http://localhost:8081
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-platform-engineer-jenkins
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8       # Google public DNS
+      - 1.1.1.1       # Cloudflare public DNS
+      # Explicit DNS servers work around a known Colima issue where the
+      # embedded Docker DNS resolver (127.0.0.11) on a compose-created
+      # bridge network fails to forward lookups correctly, causing
+      # "Could not resolve host: github.com" even though the container
+      # otherwise has working internet access (proven by the Dockerfile
+      # build itself successfully reaching several other hosts).
+    ports:
+      - "8081:8080"   # Jenkins UI (8080 is left free for our own FastAPI's uvicorn on 8000, and Argo CD's port-forward commonly uses 8080 -- 8081 avoids clashing with both)
+      - "50000:50000" # Jenkins agent port, needed if you add build agents later
+    volumes:
+      - jenkins-data:/var/jenkins_home
+
+volumes:
+  jenkins-data:
