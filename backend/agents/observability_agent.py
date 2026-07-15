@@ -75,14 +75,23 @@ def get_rollout_status(service_name: str, namespace: str) -> RolloutStatus:
     if obj is not None:
         status = obj.get("status", {})
         spec_steps = obj.get("spec", {}).get("strategy", {}).get("canary", {}).get("steps", [])
+        # Kubernetes status objects omit optional int fields entirely when
+        # their value is 0 (rather than including an explicit "0") -- e.g.
+        # a Rollout with zero available replicas has no "availableReplicas"
+        # key in its status JSON at all. .get(key) alone would return None
+        # for "the field is absent" and "genuinely zero" alike, and our
+        # rollback rule specifically treats None as "unknown, don't flag
+        # it" -- so an all-pods-down rollout would silently pass the check.
+        # Defaulting to 0 here means "absent" and "zero" are (correctly)
+        # treated the same.
         return RolloutStatus(
             ran=True,
             workload_kind="Rollout",
             phase=status.get("phase"),
-            replicas=status.get("replicas"),
-            ready_replicas=status.get("readyReplicas"),
-            available_replicas=status.get("availableReplicas"),
-            updated_replicas=status.get("updatedReplicas"),
+            replicas=status.get("replicas", 0),
+            ready_replicas=status.get("readyReplicas", 0),
+            available_replicas=status.get("availableReplicas", 0),
+            updated_replicas=status.get("updatedReplicas", 0),
             current_step_index=status.get("currentStepIndex"),
             total_steps=len(spec_steps) or None,
             message=status.get("message", ""),
@@ -106,10 +115,10 @@ def get_rollout_status(service_name: str, namespace: str) -> RolloutStatus:
             ran=True,
             workload_kind="Deployment",
             phase=phase,
-            replicas=status.get("replicas"),
-            ready_replicas=status.get("readyReplicas"),
-            available_replicas=status.get("availableReplicas"),
-            updated_replicas=status.get("updatedReplicas"),
+            replicas=status.get("replicas", 0),
+            ready_replicas=status.get("readyReplicas", 0),
+            available_replicas=status.get("availableReplicas", 0),
+            updated_replicas=status.get("updatedReplicas", 0),
             message="(plain Deployment -- predates the Argo Rollouts canary template; phase synthesized, not native)",
             output=json.dumps(status, indent=2),
         )

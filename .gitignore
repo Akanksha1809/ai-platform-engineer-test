@@ -12,3 +12,4 @@ scripts/start_backend.sh
 canary_test*.json
 response.json
 logs/
+broken_*.json
