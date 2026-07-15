@@ -1,0 +1,33 @@
+# Helm values override for the kube-prometheus-stack release, applied on
+# top of its defaults with:
+#
+#   helm upgrade kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     -n monitoring -f infra/monitoring/alertmanager-values.yaml --reuse-values
+#
+# Routes a curated subset of the chart's built-in default alert rules (pod
+# crash-looping, not-ready, replica-count mismatches) to our backend's
+# /webhook/alertmanager receiver, which runs the Observability Agent and
+# logs a recommendation -- never executes anything. Everything else (the
+# many cluster-health alerts kube-prometheus-stack ships out of the box,
+# e.g. Watchdog, KubeCPUOvercommit) is left going to the default "null"
+# receiver, since they aren't about our services' rollouts.
+alertmanager:
+  config:
+    global: {}
+    route:
+      receiver: "null"
+      group_by: ["alertname", "namespace"]
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 3h
+      routes:
+        - receiver: "observability-agent-webhook"
+          matchers:
+            - alertname =~ "KubePodCrashLooping|KubePodNotReady|KubeDeploymentReplicasMismatch|KubeContainerWaiting|KubeStatefulSetReplicasMismatch"
+          continue: false
+    receivers:
+      - name: "null"
+      - name: "observability-agent-webhook"
+        webhook_configs:
+          - url: "http://host.docker.internal:8000/webhook/alertmanager"
+            send_resolved: true

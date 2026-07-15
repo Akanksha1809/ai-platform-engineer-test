@@ -11,3 +11,4 @@ scripts/start_backend.sh
 *.json.local
 canary_test*.json
 response.json
+logs/
