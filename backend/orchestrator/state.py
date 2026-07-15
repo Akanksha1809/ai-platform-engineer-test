@@ -80,6 +80,62 @@ class AgentReport(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class RolloutStatus(BaseModel):
+    """Live status of a deployed workload (Argo Rollouts' Rollout, or a
+    plain Deployment as a fallback for anything deployed before Milestone
+    5), read directly from the Kubernetes API. These are hard facts --
+    never phrased or summarized by the LLM, which only narrates them."""
+
+    ran: bool = True
+    workload_kind: Optional[str] = None  # "Rollout" or "Deployment"
+    phase: Optional[str] = None  # Rollout: Healthy/Progressing/Degraded/Paused. Deployment: synthesized.
+    replicas: Optional[int] = None
+    ready_replicas: Optional[int] = None
+    available_replicas: Optional[int] = None
+    updated_replicas: Optional[int] = None
+    current_step_index: Optional[int] = None
+    total_steps: Optional[int] = None
+    message: str = ""
+    output: str = ""  # raw kubectl JSON, kept as evidence
+
+
+class MetricResult(BaseModel):
+    """One PromQL query result against the kube-prometheus-stack Prometheus
+    -- also a hard fact, read straight from its HTTP API."""
+
+    name: str
+    query: str
+    ran: bool = True
+    value: Optional[float] = None
+    output: str = ""
+
+
+class RollbackRecommendation(BaseModel):
+    """The Observability Agent's output. `recommended` is decided entirely
+    by deterministic thresholds against RolloutStatus/MetricResult facts --
+    never by the LLM. The LLM (if reachable) only phrases `summary` in
+    plain English from those same facts. This agent NEVER executes a
+    rollback: `suggested_command` is something a human must run themselves,
+    after reviewing the evidence, and it's a `git revert` (not a raw
+    `kubectl rollout undo`), since ArgoCD's automated self-heal would just
+    reapply the current Git state over any imperative cluster change."""
+
+    recommended: bool = False
+    reasons: list[str] = Field(default_factory=list)
+    summary: str = ""
+    suggested_command: Optional[str] = None
+    git_revision: Optional[str] = None
+
+
+class ObservabilityReport(BaseModel):
+    service_name: str
+    namespace: str
+    rollout_status: RolloutStatus
+    metrics: list[MetricResult] = Field(default_factory=list)
+    recommendation: RollbackRecommendation
+    notes: list[str] = Field(default_factory=list)
+
+
 class TaskPlan(BaseModel):
     """The end-to-end record of one request, filled in as it moves through the pipeline."""
 

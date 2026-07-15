@@ -11,8 +11,11 @@ from __future__ import annotations
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from typing import Optional
+
+from backend.agents import observability_agent
 from backend.orchestrator.pipeline import run_pipeline
-from backend.orchestrator.state import TaskPlan
+from backend.orchestrator.state import ObservabilityReport, TaskPlan
 
 app = FastAPI(title="AI Platform Engineer", version="0.1.0")
 
@@ -30,3 +33,21 @@ def health() -> dict:
 @app.post("/generate", response_model=TaskPlan)
 def generate(body: GenerateRequest) -> TaskPlan:
     return run_pipeline(body.request, open_pr=body.open_pr)
+
+
+class ObserveRequest(BaseModel):
+    service_name: str
+    namespace: str = "default"
+    argocd_app_name: Optional[str] = None  # defaults to service_name if not given
+
+
+@app.post("/observe", response_model=ObservabilityReport)
+def observe(body: ObserveRequest) -> ObservabilityReport:
+    """Milestone 5: checks a deployed service's rollout health (Kubernetes
+    API + Prometheus) and returns a report with -- if warranted -- a
+    rollback recommendation. Never executes anything; a human decides."""
+    return observability_agent.run(
+        service_name=body.service_name,
+        namespace=body.namespace,
+        argocd_app_name=body.argocd_app_name,
+    )
