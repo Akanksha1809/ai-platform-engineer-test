@@ -1,6 +1,6 @@
-# AI Platform Engineer (Milestone 4)
+# AI Platform Engineer (Milestone 5)
 
-Turns a natural-language infra request into a validated, cost-estimated, security-scanned GitHub Pull Request with an AI-written explanation, and -- once merged -- automatically CI-validated by Jenkins and deployed by ArgoCD to a local Kubernetes cluster. Uses a locally-hosted LLM (Ollama) and zero paid services except AWS itself, which is never auto-applied (see docs/architecture.md section 5). This is Milestones 1-4 of the full pipeline; only the observability/rollback loop (Milestone 5) remains.
+Turns a natural-language infra request into a validated, cost-estimated, security-scanned GitHub Pull Request with an AI-written explanation; once merged, Jenkins CI-validates it and ArgoCD deploys it (as an Argo Rollouts canary) to a local Kubernetes cluster; and once deployed, an Observability Agent watches the rollout via Prometheus + the Rollout's own status and recommends -- but never executes -- a rollback if something's wrong. Uses a locally-hosted LLM (Ollama) and zero paid services except AWS itself, which is never auto-applied (see docs/architecture.md section 5). This is Milestones 1-5 of the full pipeline; only the AWS demo cluster (Milestone 6) remains.
 
 ## Pipeline (current scope)
 
@@ -104,11 +104,15 @@ policies/
 infra/
 ├── kind/kind-config.yaml        # local Kubernetes cluster definition
 ├── argocd/applicationset.yaml    # auto-discovers helm/<service>/ folders
-└── jenkins/
-    ├── Dockerfile                 # Jenkins + terraform/helm/kubectl baked in
-    └── docker-compose.yml
+├── jenkins/
+│   ├── Dockerfile                 # Jenkins + terraform/helm/kubectl baked in
+│   └── docker-compose.yml
+└── monitoring/
+    └── alertmanager-values.yaml   # routes rollout-failure alerts to our webhook
 Jenkinsfile                        # validates on merge; does not deploy
 ```
+
+`backend/agents/observability_agent.py` (Milestone 5) reads Rollout/Deployment status via `kubectl` and metrics via Prometheus's HTTP API; `backend/orchestrator/state.py` holds its `RolloutStatus` / `MetricResult` / `RollbackRecommendation` / `ObservabilityReport` models.
 
 ## Milestone 4: CI/CD + GitOps
 
@@ -119,6 +123,29 @@ Once a PR is merged to `main`:
 
 Full setup and the merge-to-running-pod walkthrough: **`docs/milestone4-cicd-gitops.md`**.
 
+## Milestone 5: Observability + rollback recommendations
+
+Once ArgoCD deploys a service, the Observability Agent can check its health on demand or automatically:
+
+- **Argo Rollouts canary strategy**: the Helm chart's workload template (`templates/helm/service/templates/rollout.yaml`) renders an `argoproj.io/v1alpha1 Rollout` instead of a plain Deployment, with a basic (replica-weighted, no service-mesh dependency) canary: 50% weight, a 30s pause, then auto-promote. `kubeconform` validates it against the real Argo Rollouts CRD schema (via the `datreeio/CRDs-catalog` project), not just core Kubernetes kinds.
+- **kube-prometheus-stack** (`infra/monitoring/alertmanager-values.yaml` holds the Alertmanager routing override): Prometheus + Grafana + Alertmanager + kube-state-metrics, installed via the standard Helm chart into the same `kind` cluster.
+- **Observability Agent** (`backend/agents/observability_agent.py`): reads a Rollout's live status from the Kubernetes API (falling back to a plain Deployment's status for anything deployed before this milestone), queries Prometheus for pod restart counts and waiting-reason counts (`CrashLoopBackOff`, `ImagePullBackOff`/`ErrImagePull`), and reads ArgoCD's currently-synced git revision. The actual rollback decision is 100% deterministic threshold logic against those facts -- the LLM (if Ollama is reachable) is only ever asked to phrase a plain-English summary of facts it's handed, the same narration-only pattern as the Docs Agent.
+- **`POST /observe`**: on-demand check for one service (`{"service_name": "...", "namespace": "default"}`).
+- **`POST /webhook/alertmanager`**: the automatic counterpart. A curated subset of kube-prometheus-stack's built-in alert rules (`KubePodCrashLooping`, `KubePodNotReady`, `KubeContainerWaiting`, etc.) are routed to this endpoint, which runs the same check whenever one fires.
+- **`GET /recommendations`**: every recommendation ever made (on-demand or automatic), logged to `logs/observability_events.jsonl` -- this is where a human actually reviews and decides, since nothing here ever executes anything.
+- **Rollback suggestion is a `git revert`, not `kubectl rollout undo`**: because ArgoCD's automated self-heal sync policy would just reapply the current (bad) Git state over any imperative cluster-level fix, the only rollback that actually sticks is reverting the offending commit and letting ArgoCD sync the reverted state back down.
+
+### Verified with a real induced failure
+
+Deployed a service with a genuinely nonexistent image tag (`nginx:this-tag-does-not-exist`) through the full real pipeline -- merged PR, Jenkins validated it, ArgoCD deployed it, and the pods stuck in `ImagePullBackOff`:
+
+- `POST /observe` correctly flagged it: `recommended: true`, citing the Rollout's `Degraded` phase, 2 pods unable to pull their image, and 0/2 replicas available -- with a `git revert <real-commit-sha>` suggested command.
+- The automatic path also worked: real `KubePodNotReady` alerts fired in Alertmanager on their own and hit `/webhook/alertmanager` four separate times over ~50 minutes, each one independently logging the same correct recommendation with zero manual intervention.
+- Following the suggested `git revert` + push cleanly triggered ArgoCD's self-heal/prune to remove the broken service entirely, confirmed via `kubectl get applications -n argocd` and `kubectl get pods`.
+- Caught and fixed a real bug in this pass: Kubernetes omits status fields entirely when their value is `0` (e.g. a fully-down Rollout has no `availableReplicas` key at all, rather than an explicit `0`), and the original code's `.get("availableReplicas")` read that as "unknown" rather than "zero," silently skipping the replica-availability check. Fixed by defaulting those fields to `0`.
+
+Full setup and walkthrough: **`docs/milestone5-observability.md`**.
+
 ## Next milestone
 
-Observability Agent (Prometheus queries + Argo Rollouts status) summarizing rollouts and recommending -- not executing -- rollbacks on failure.
+Milestone 6 -- point ArgoCD at a real (or free-tier) AWS-hosted cluster for the final demo recording (see `docs/architecture.md` section 5 for keeping this near $0).
