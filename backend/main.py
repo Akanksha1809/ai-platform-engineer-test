@@ -28,10 +28,27 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from backend.agents import observability_agent
+from backend.llm import ollama_client
 from backend.orchestrator.pipeline import run_pipeline
 from backend.orchestrator.state import ObservabilityReport, TaskPlan
 
 app = FastAPI(title="AI Platform Engineer", version="0.1.0")
+
+
+@app.on_event("startup")
+def _warm_up_ollama() -> None:
+    """Best-effort: nudge Ollama to load the model into memory now, at
+    server startup, rather than on whatever request happens to be first.
+    A cold model load is the main cause of the 120s+ timeouts seen during
+    real testing -- this doesn't eliminate that cost, just moves it here
+    instead of onto a user-facing request. Never blocks startup on failure
+    (Ollama not running yet is a completely normal, supported state)."""
+    if not ollama_client.is_available(timeout=1.0):
+        return
+    try:
+        ollama_client.generate("Reply with just the word: ready", temperature=0.0)
+    except ollama_client.OllamaUnavailable:
+        pass
 
 LOG_PATH = Path(__file__).resolve().parents[1] / "logs" / "observability_events.jsonl"
 

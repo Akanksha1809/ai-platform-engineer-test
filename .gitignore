@@ -13,3 +13,5 @@ canary_test*.json
 response.json
 logs/
 broken_*.json
+.terraform-cache/
+warmup_test.json

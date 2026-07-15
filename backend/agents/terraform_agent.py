@@ -7,8 +7,10 @@ Terraform reliably valid instead of a coin flip.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -17,6 +19,20 @@ from backend.agents.util import ToolExecutionError, run_tool, write_flat
 from backend.orchestrator.state import AgentReport, GeneratedFile, ServiceSpec, ValidationResult
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "templates" / "terraform" / "service"
+
+# Every validate() call runs `terraform init` in a fresh temp directory, so
+# without a plugin cache, EVERY request re-downloads the AWS provider
+# (~100+MB) from registry.terraform.io from scratch. Pointing all of them at
+# one persistent, shared cache directory means only the very first call ever
+# has to actually download it -- every call after that reuses the cached
+# binary, which is both faster and far less exposed to registry hiccups
+# (like the transient timeout seen during real testing).
+PLUGIN_CACHE_DIR = Path(__file__).resolve().parents[2] / ".terraform-cache" / "plugin-cache"
+
+# A transient registry blip (DNS hiccup, momentary timeout) shouldn't take
+# down the whole validation -- retry `terraform init` once after a short
+# pause before giving up and reporting a real failure.
+INIT_RETRY_DELAY_SECONDS = 3
 
 
 def render(spec: ServiceSpec) -> list[GeneratedFile]:
@@ -52,6 +68,9 @@ def validate(files: list[GeneratedFile]) -> ValidationResult:
             "Install Terraform and re-run to validate before opening a PR.",
         )
 
+    PLUGIN_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "TF_PLUGIN_CACHE_DIR": str(PLUGIN_CACHE_DIR)}
+
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         write_flat(files, tmp_path)
@@ -62,11 +81,28 @@ def validate(files: list[GeneratedFile]) -> ValidationResult:
                 cwd=tmp_path,
                 capture_output=True,
                 text=True,
+                env=env,
             )
             if init.returncode != 0:
-                return ValidationResult(tool="terraform validate", ok=False, output=init.stdout + init.stderr)
+                # Could be a real config problem, or a transient registry
+                # blip (network timeout resolving provider versions) -- retry
+                # once before treating it as a genuine failure. A real config
+                # error will fail identically both times, at no extra cost
+                # beyond one short delay; a transient one usually clears up.
+                time.sleep(INIT_RETRY_DELAY_SECONDS)
+                init = run_tool(
+                    ["terraform", "init", "-backend=false", "-input=false"],
+                    cwd=tmp_path,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
+                if init.returncode != 0:
+                    return ValidationResult(tool="terraform validate", ok=False, output=init.stdout + init.stderr)
 
-            result = run_tool(["terraform", "validate", "-json"], cwd=tmp_path, capture_output=True, text=True)
+            result = run_tool(
+                ["terraform", "validate", "-json"], cwd=tmp_path, capture_output=True, text=True, env=env
+            )
             return ValidationResult(
                 tool="terraform validate",
                 ok=result.returncode == 0,
