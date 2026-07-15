@@ -7,3 +7,7 @@ venv/
 *.tfstate.*
 .env
 .DS_Store
+scripts/start_backend.sh
+*.json.local
+canary_test*.json
+response.json

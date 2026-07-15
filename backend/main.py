@@ -19,6 +19,7 @@ app = FastAPI(title="AI Platform Engineer", version="0.1.0")
 
 class GenerateRequest(BaseModel):
     request: str
+    open_pr: bool = True  # set false to validate/generate only, no GitHub PR
 
 
 @app.get("/health")
@@ -28,4 +29,4 @@ def health() -> dict:
 
 @app.post("/generate", response_model=TaskPlan)
 def generate(body: GenerateRequest) -> TaskPlan:
-    return run_pipeline(body.request)
+    return run_pipeline(body.request, open_pr=body.open_pr)

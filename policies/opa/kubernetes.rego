@@ -7,30 +7,37 @@
 # rules like `deny` require the `contains` keyword, and rule bodies require
 # `if`. The older `deny[msg] { ... }` form is rejected by current
 # conftest/OPA with a rego_parse_error -- this file uses the current form.
+#
+# As of Milestone 5, our Helm chart renders an Argo Rollouts "Rollout"
+# instead of a plain apps/v1 Deployment (Rollout is a drop-in superset of
+# Deployment's spec/template/selector fields). These rules check both
+# kinds so they keep applying regardless of which workload type is used.
 package main
 
+workload_kinds := {"Deployment", "Rollout"}
+
 deny contains msg if {
-	input.kind == "Deployment"
+	input.kind in workload_kinds
 	container := input.spec.template.spec.containers[_]
 	not container.resources.requests
-	msg := sprintf("Deployment '%s': container '%s' has no resource requests set", [input.metadata.name, container.name])
+	msg := sprintf("%s '%s': container '%s' has no resource requests set", [input.kind, input.metadata.name, container.name])
 }
 
 # Every container must declare resource limits, so one bad pod can't starve
 # its node of CPU/memory.
 deny contains msg if {
-	input.kind == "Deployment"
+	input.kind in workload_kinds
 	container := input.spec.template.spec.containers[_]
 	not container.resources.limits
-	msg := sprintf("Deployment '%s': container '%s' has no resource limits set", [input.metadata.name, container.name])
+	msg := sprintf("%s '%s': container '%s' has no resource limits set", [input.kind, input.metadata.name, container.name])
 }
 
 # Containers must never run in privileged mode.
 deny contains msg if {
-	input.kind == "Deployment"
+	input.kind in workload_kinds
 	container := input.spec.template.spec.containers[_]
 	container.securityContext.privileged == true
-	msg := sprintf("Deployment '%s': container '%s' must not run as privileged", [input.metadata.name, container.name])
+	msg := sprintf("%s '%s': container '%s' must not run as privileged", [input.kind, input.metadata.name, container.name])
 }
 
 # LoadBalancer services (public-facing) must not use an empty selector,

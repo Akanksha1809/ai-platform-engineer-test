@@ -26,7 +26,7 @@ _JINJA_FILES = ["Chart.yaml.j2", "values.yaml.j2"]
 
 # Files copied verbatim (contain Helm's own {{ .Values.* }} template syntax).
 _STATIC_FILES = [
-    "templates/deployment.yaml",
+    "templates/rollout.yaml",
     "templates/service.yaml",
     "templates/_helpers.tpl",
 ]
@@ -106,7 +106,23 @@ def validate(files: list[GeneratedFile]) -> list[ValidationResult]:
         if result.returncode == 0 and shutil.which("kubeconform") is not None:
             try:
                 kc = run_tool(
-                    ["kubeconform", "-strict", "-summary"],
+                    [
+                        "kubeconform",
+                        "-strict",
+                        "-summary",
+                        # Our chart now renders an argoproj.io/v1alpha1 Rollout,
+                        # which isn't a built-in Kubernetes kind, so kubeconform's
+                        # bundled schemas alone can't validate it. Point it at the
+                        # datreeio/CRDs-catalog project (a community-maintained
+                        # mirror of JSON Schemas for popular CRDs, including Argo
+                        # Rollouts) as a second schema source, and fall back to
+                        # ignoring anything still missing rather than failing the
+                        # whole validation over a schema-hosting hiccup.
+                        "-schema-location", "default",
+                        "-schema-location",
+                        "https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json",
+                        "-ignore-missing-schemas",
+                    ],
                     input=rendered_manifest,
                     capture_output=True,
                     text=True,
