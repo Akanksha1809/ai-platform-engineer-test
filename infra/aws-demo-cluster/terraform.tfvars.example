@@ -1,0 +1,1 @@
+allowed_cidr = "YOUR.PUBLIC.IP.HERE/32" # curl https://checkip.amazonaws.com

@@ -1,0 +1,34 @@
+# Milestone 6 proof: the same hello-nginx chart already running on the
+# local kind cluster, deployed by this same ArgoCD instance onto the real
+# AWS-hosted k3s cluster (infra/aws-demo-cluster/). This is a standalone
+# Application rather than part of the ApplicationSet in applicationset.yaml,
+# since that generator's template hardcodes the local in-cluster
+# destination for every helm/* folder it finds -- this one deliberately
+# targets the registered AWS cluster instead (`argocd cluster add`, see
+# docs/milestone6-aws-demo-cluster.md for how it was registered).
+#
+# Apply with:
+#   kubectl apply -f infra/argocd/hello-nginx-aws-demo-cluster.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello-nginx-aws
+  namespace: argocd
+  labels:
+    managed-by: ai-platform-engineer
+    milestone: "6"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Akanksha1809/ai-platform-engineer-test
+    targetRevision: main
+    path: helm/hello-nginx
+  destination:
+    server: https://75.101.238.172:6443
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

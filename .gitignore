@@ -15,3 +15,8 @@ logs/
 broken_*.json
 .terraform-cache/
 warmup_test.json
+infra/aws-demo-cluster/*.pem
+infra/aws-demo-cluster/*kubeconfig*
+infra/aws-demo-cluster/terraform.tfvars
+tfplan
+*.tfplan

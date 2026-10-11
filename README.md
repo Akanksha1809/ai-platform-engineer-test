@@ -1,6 +1,6 @@
-# AI Platform Engineer (Milestone 5)
+# AI Platform Engineer (Milestone 6)
 
-Turns a natural-language infra request into a validated, cost-estimated, security-scanned GitHub Pull Request with an AI-written explanation; once merged, Jenkins CI-validates it and ArgoCD deploys it (as an Argo Rollouts canary) to a local Kubernetes cluster; and once deployed, an Observability Agent watches the rollout via Prometheus + the Rollout's own status and recommends -- but never executes -- a rollback if something's wrong. Uses a locally-hosted LLM (Ollama) and zero paid services except AWS itself, which is never auto-applied (see docs/architecture.md section 5). This is Milestones 1-5 of the full pipeline; only the AWS demo cluster (Milestone 6) remains.
+Turns a natural-language infra request into a validated, cost-estimated, security-scanned GitHub Pull Request with an AI-written explanation; once merged, Jenkins CI-validates it and ArgoCD deploys it (as an Argo Rollouts canary) to a local Kubernetes cluster; and once deployed, an Observability Agent watches the rollout via Prometheus + the Rollout's own status and recommends -- but never executes -- a rollback if something's wrong. Uses a locally-hosted LLM (Ollama) and zero paid services except AWS itself, which is never auto-applied (see docs/architecture.md section 5). The same GitOps flow also reaches a real AWS-hosted cluster (a free-tier-adjacent k3s node on EC2, not EKS -- see docs/milestone6-aws-demo-cluster.md) for a live, resume-worthy demo target. This is the full Milestones 1-6 pipeline.
 
 ## Pipeline (current scope)
 
@@ -107,8 +107,13 @@ infra/
 ├── jenkins/
 │   ├── Dockerfile                 # Jenkins + terraform/helm/kubectl baked in
 │   └── docker-compose.yml
-└── monitoring/
-    └── alertmanager-values.yaml   # routes rollout-failure alerts to our webhook
+├── monitoring/
+│   └── alertmanager-values.yaml   # routes rollout-failure alerts to our webhook
+├── aws/
+│   └── iam-policy-ec2-demo.json  # scoped IAM policy for Milestone 6's Terraform
+└── aws-demo-cluster/               # Milestone 6: real EC2+k3s cluster (Terraform)
+    ├── main.tf / variables.tf / outputs.tf
+    └── user_data.sh.tpl
 Jenkinsfile                        # validates on merge; does not deploy
 ```
 
@@ -146,6 +151,8 @@ Deployed a service with a genuinely nonexistent image tag (`nginx:this-tag-does-
 
 Full setup and walkthrough: **`docs/milestone5-observability.md`**.
 
-## Next milestone
+## Milestone 6: a real AWS-hosted demo cluster
 
-Milestone 6 -- point ArgoCD at a real (or free-tier) AWS-hosted cluster for the final demo recording (see `docs/architecture.md` section 5 for keeping this near $0).
+The same ArgoCD instance now also manages a real cluster: a single-node k3s install on an EC2 instance (`t3.small`, ~$7.50/month if left running -- `t3.micro` turned out to have no real headroom for k3s; see the doc below for why), provisioned with Terraform and reachable over a locked-down security group. `hello-nginx` syncs there via its own ArgoCD Application alongside the local `kind` deployment, and is reachable from the public internet over its NodePort.
+
+Full setup, the two real problems hit getting there (a jumbo-frame MTU blackhole, and the `t3.micro` memory ceiling), and the cost-teardown command: **`docs/milestone6-aws-demo-cluster.md`**.

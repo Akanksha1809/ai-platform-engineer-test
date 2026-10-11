@@ -144,7 +144,7 @@ ai-platform-engineer/
 3. **Milestone 3 -- GitHub integration.** Auto-opens a PR with generated code + assembled explanation + scan/cost results as comments.
 4. **Milestone 4 -- CI/CD + GitOps.** Jenkins pipeline on merge, ArgoCD syncing to a local kind cluster.
 5. **Milestone 5 -- Observability loop.** Prometheus/Grafana/Alertmanager wired up; Observability Agent polls and summarizes; failure path produces a rollback recommendation.
-6. **Milestone 6 -- AWS demo cluster.** Point ArgoCD at a real (or free-tier) AWS cluster for the final demo recording.
+6. **Milestone 6 -- AWS demo cluster.** Point ArgoCD at a real (or free-tier) AWS cluster for the final demo recording. Done -- a `t3.small` EC2 instance running k3s, registered as a second ArgoCD destination alongside the local `kind` cluster; see `docs/milestone6-aws-demo-cluster.md`.
 
 Each milestone is independently demoable -- useful for showing incremental progress and for interview walkthroughs ("here's the state after milestone 3...").
 
