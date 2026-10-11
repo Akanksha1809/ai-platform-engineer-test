@@ -32,7 +32,7 @@ pip install -r requirements.txt
 # 2. (Optional but recommended) local LLM for real NL understanding + PR explanations
 curl -fsSL https://ollama.com/install.sh | sh
 ollama serve &
-ollama pull qwen2.5-coder:14b   # or qwen2.5-coder:7b on lower-RAM machines
+ollama pull qwen2.5-coder:3b   # or qwen2.5-coder:7b / 14b for better quality on higher-RAM machines
 
 # 3. (Optional) validation tools -- generation/scanning work without them,
 #    results just show "SKIPPED" until installed.

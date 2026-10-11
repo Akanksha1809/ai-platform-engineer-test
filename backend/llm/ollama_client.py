@@ -14,7 +14,7 @@ from typing import Optional
 import requests
 
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:14b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:3b")
 # 120s wasn't enough in practice -- a genuinely cold model (nothing generated
 # recently) commonly takes longer than that just to load into memory before
 # it can even start generating, on top of everything else usually running
@@ -80,7 +80,7 @@ def generate(
                 f"Ollama at {OLLAMA_HOST} timed out twice in a row (waited {DEFAULT_TIMEOUT:.0f}s "
                 f"each time) trying to run model '{resolved_model}'. This usually means the model "
                 f"is larger than your machine can generate with in reasonable time -- try a smaller "
-                f"model (e.g. qwen2.5-coder:7b) or `ollama run {resolved_model}` once first to "
+                f"model (e.g. qwen2.5-coder:3b) or `ollama run {resolved_model}` once first to "
                 f"confirm it works at all outside this pipeline. (Original error: {exc})"
             ) from exc
     except requests.RequestException as exc:
