@@ -1,0 +1,38 @@
+# Milestone 6 proof, using the same service as the rest of the demo walkthrough:
+# orders-api, generated live via POST /generate, merged as a real PR, deployed
+# locally by the Milestone-4 ApplicationSet -- and here, deployed the same way
+# onto the real AWS-hosted k3s cluster (infra/aws-demo-cluster/). Standalone
+# Application rather than part of applicationset.yaml, since that generator's
+# template hardcodes the local in-cluster destination for every helm/* folder
+# it finds -- this one deliberately targets the registered AWS cluster instead
+# (`argocd cluster add`, see docs/milestone6-aws-demo-cluster.md).
+#
+# Replaces the earlier hello-nginx-aws-demo-cluster.yaml so the whole
+# walkthrough -- generate, PR, merge, local deploy, observe, AWS deploy -- stays
+# on one service end to end, instead of switching services partway through.
+#
+# Apply with:
+#   kubectl apply -f infra/argocd/orders-api-aws-demo-cluster.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orders-api-aws
+  namespace: argocd
+  labels:
+    managed-by: ai-platform-engineer
+    milestone: "6"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Akanksha1809/ai-platform-engineer-test
+    targetRevision: main
+    path: helm/orders-api
+  destination:
+    server: https://52.203.242.187:6443
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -19,4 +19,5 @@ infra/aws-demo-cluster/*.pem
 infra/aws-demo-cluster/*kubeconfig*
 infra/aws-demo-cluster/terraform.tfvars
 tfplan
+tfdestroy
 *.tfplan
