@@ -26,6 +26,16 @@ spec:
           # Excludes the shared template source under templates/helm/,
           # which is not itself a deployable chart.
           - path: helm/*
+          # orders-api and payments-api are demo/test services generated
+          # with deliberately-fake image tags (used to prove the
+          # Observability Agent catches real failures) -- excluded here so
+          # ArgoCD stops auto-redeploying them as permanently-Degraded
+          # Applications. The Helm charts themselves stay in the repo as a
+          # record; this only stops them from being managed.
+          - path: helm/orders-api
+            exclude: true
+          - path: helm/payments-api
+            exclude: true
   template:
     metadata:
       name: "{{.path.basename}}"
